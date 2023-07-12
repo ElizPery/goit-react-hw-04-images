@@ -1,140 +1,103 @@
-import { Component } from "react";
+import { useEffect, useState, useRef } from "react";
 import Searchbar from "components/Searchbar";
 import ImageGallery from "components/ImageGallery";
 import { fetchGallery } from "api/gallery";
 import Button from "components/Button";
 import css from './App.module.css';
 import Loader from "components/Loader";
-import Modal from "components/Modal";
+import { Modal } from "components/Modal";
 import Notiflix from 'notiflix';
 
-export class App extends Component {
-  state = {
-    query: '',
-    items: [],
-    total: 0,
-    page: 1,
-    isError: false,
-    isLoading: false,
-    showModal: false,
-    modalData: '',
-    tags: ''
-  };
+export function App() {
+  const [query, setQuery] = useState('');
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [isError, setIsError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalData, setModalData] = useState('');
+  const [tags, setTags] = useState('');
+  const isFirstRender = useRef(true);
 
-  componentDidUpdate(_, prevState) {
-    const {
-      query,
-      page ,
-    } = this.state;
-
-
-    if (prevState.query !== query || prevState.page !== page) {
-      this.fetchData(query, page);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  }
+    fetchData(query, page);
+  }, [query, page]);
 
-  fetchData = async (query, page) => {
-
+  const fetchData = async (query, page) => {
     if (query.trim() === '') {
       return Notiflix.Notify.warning('Please enter your request');
     }
 
-    this.setState({
-      isLoading: true,
-    });
+    setIsLoading(true);
 
     try {
       const response = await fetchGallery(query, page);
 
       if (response.items.length === 0) {
-        this.setState({isLoading: false})
+        setIsLoading(false)
         return Notiflix.Notify.failure('Nothing found');
       }
 
-      this.setState(prev => ({
-        items: [...prev.items, ...response.items],
-        total: response.total,
-      }));
+      setItems(prev => [...prev, ...response.items]);
+      setTotal(response.total);
 
     } catch {
-      this.setState({ isError: true});
+      setIsError(true)
     } finally {
-      this.setState(
-        {isLoading: false}
-      )
+      setIsLoading(false)
     }
   };
 
-  onSubmit = e => {
+  const onSubmit = e => {
     e.preventDefault();
 
     const inputValue = e.target.elements[1].value;
 
-    this.setState({
-      query: inputValue,
-      items: [],
-      page: 1,
-    });
+    setQuery(inputValue);
+    setItems([]);
+    setPage(1);
   };
 
-  handleLoadMore = () => {
-    this.setState(prevState => {
-      return {
-        page: prevState.page + 1,
-      };
-    });
+  const handleLoadMore = () => {
+    setPage(prev => prev + 1)
   };
 
-  onCloseModal = () => {
-    this.setState({
-      showModal: false,
-      modalData: '',
-      tags: '',
-    });
+  const onCloseModal = () => {
+    setShowModal(false);
+    setModalData('');
+    setTags('');
   };
 
-  onOpenModal = (img, alt) => {
-    this.setState({
-      showModal: true,
-      modalData: img,
-      tags: alt
-    });
+  const onOpenModal = (img, alt) => {
+    setShowModal(true);
+    setModalData(img);
+    setTags(alt);
   };
 
-  render() {
-    const {
-      items, total,
-      isError,
-      isLoading,
-      showModal,
-      modalData,
-      tags
-    } = this.state;
-
-    const { onCloseModal, onSubmit, onOpenModal, handleLoadMore } = this;
-
-    const loadMore = total / items.length;
-
-    return (
-      <div className={css.app}>
-        {showModal && (
-          <Modal onClose={onCloseModal}>
-            <img src={modalData} alt={tags} />
-          </Modal>
+  return (
+    <div className={css.app}>
+      {showModal && (
+        <Modal onClose={onCloseModal} >
+          <img src={modalData} alt={tags} />
+        </Modal>
+      )}
+      <Searchbar onSubmit={onSubmit} />
+      {items.length !== 0 && (
+        <ImageGallery items={items} toggleModal={onOpenModal} />
+      )}
+      {isLoading && <Loader />}
+      {isError &&
+        Notiflix.Notify.failure(
+          'Something went wrong, please try another query'
         )}
-        <Searchbar onSubmit={onSubmit} />
-        {items.length !== 0 && (
-          <ImageGallery items={items} toggleModal={onOpenModal} />
-        )}
-        {isLoading && <Loader />}
-        {isError &&
-          Notiflix.Notify.failure(
-            'Something went wrong, please try another query'
-          )}
-        {loadMore > 1 && !isLoading && items.length !== 0 && (
-          <Button onClick={handleLoadMore} />
-        )}
-      </div>
-    );
-  }
+      {(total / items.length) > 1 && !isLoading && items.length !== 0 && (
+        <Button onClick={handleLoadMore} />
+      )}
+    </div>
+  );
 }
